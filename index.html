@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Ball Sort Puzzle</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            font-family: 'Comic Sans MS', 'Arial', sans-serif;
+            background: linear-gradient(to bottom, #74ebd5, #acb6e5);
+            margin: 0;
+            min-height: 100vh;
+        }
+
+        #controls {
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            margin: 10px;
+        }
+
+        #game {
+            display: flex;
+            justify-content: center;
+            flex-wrap: wrap;
+            margin: 20px;
+        }
+
+        .tube {
+            width: 60px;
+            height: 240px;
+            border: 3px solid #333;
+            border-bottom: 10px solid #555;
+            border-radius: 10px;
+            margin: 10px;
+            background: #f0f0f0;
+            display: flex;
+            flex-direction: column-reverse;
+            align-items: center;
+            cursor: pointer;
+            transition: transform 0.2s;
+            position: relative;
+        }
+
+        .tube:hover {
+            transform: scale(1.05);
+        }
+
+        .tube.selected {
+            border-color: #ff4444;
+            box-shadow: 0 0 10px #ff4444;
+        }
+
+        .tube-number {
+            position: absolute;
+            bottom: -25px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #333;
+        }
+
+        .ball {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            margin: 3px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.3);
+            transition: transform 0.5s ease-in-out;
+        } 
+
+        .ball.moving {
+            animation: moveBall 0.5s ease-in-out;
+        }
+
+        @keyframes moveBall {
+            0% { transform: translateY(0); }
+            50% { transform: translateY(-20px); }
+            100% { transform: translateY(0); }
+        }
+
+        .color-1 { background: #ff0000; }
+        .color-2 { background: #0000ff; }
+        .color-3 { background: #00ff00; }
+        .color-4 { background: #ffff00; }
+        .color-5 { background: #000000; }
+        .color-6 { background: #ff9900; }
+        .color-7 { background: #ff69b4; }
+        .color-8 { background: #00ffff; }
+        .color-9 { background: #800080; }
+        .color-10 { background: #808080; }
+        .color-11 { background: #a52a2a; }
+        .color-12 { background: #008080; }
+        .color-13 { background: #228b22; }
+        .color-14 { background: #ff6347; }
+        .color-15 { background: #c0c0c0; }
+
+        button, input {
+            margin: 10px;
+            padding: 10px 20px;
+            font-size: 16px;
+            border: none;
+            border-radius: 5px;
+            background: #4CAF50;
+            color: white;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+
+        button:hover, input:hover {
+            background: #45a049;
+        }
+
+        #animateSolution {
+            display: none;
+        }
+
+        #solutionSteps {
+            text-align: left;
+            max-width: 400px;
+            background: rgba(255, 255, 255, 0.9);
+            padding: 15px;
+            border-radius: 10px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.2);
+            margin: 10px;
+        }
+
+        h1 {
+            color: #333;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        #winMessage {
+            display: none;
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: gold;
+            font-size: 36px;
+            font-weight: bold;
+            padding: 20px 40px;
+            border-radius: 10px;
+            box-shadow: 0 0 20px rgba(255, 215, 0, 0.5);
+            z-index: 1000;
+            text-align: center;
+        }
+
+        .firework {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: radial-gradient(circle, rgba(255, 255, 255, 0.8), rgba(255, 165, 0, 0));
+            border-radius: 50%;
+            pointer-events: none;
+            animation: explode 1s ease-out forwards;
+        }
+
+        @keyframes explode {
+            0% {
+                transform: scale(0);
+                opacity: 1;
+            }
+            100% {
+                transform: scale(10);
+                opacity: 0;
+            }
+        }
+    </style>
+</head>
+<body>
+    <h1>Ball Sort Puzzle</h1>
+    <div id="controls">
+        <label>Colors: <input type="number" id="numColors" value="4" min="3" max="15"></label>
+    </div>
+    <div id="game"></div>
+    <button id="newGame">New Game</button>
+    <button id="solve">Solve</button>
+    <button id="undo">Undo</button>
+    <button id="resetGame">Reset</button>
+    <button id="animateSolution">Animate Solution</button>
+    <div id="solutionSteps"></div>
+    <div id="winMessage">Congratulations, you won!<br><span id="timeDisplay"></span></div>
+
+    <script>
+        let numColors = parseInt(document.getElementById('numColors').value);
+        let numTubes = numColors + 2;
+        let tubeCapacity = 4;
+        let currentState = [];
+        let initialState = [];
+        let selectedTube = -1;
+        let moveHistory = [];
+        let currentSolution = null;
+        let gameStateId = 0;
+        let startTime = null;
+
+        function initGame() {
+            numColors = parseInt(document.getElementById('numColors').value);
+            if (numColors < 3 || numColors > 15) {
+                alert('Colors must be between 3 and 15');
+                return;
+            }
+            numTubes = numColors + 2;
+            let balls = [];
+            for (let c = 1; c <= numColors; c++) {
+                for (let i = 0; i < tubeCapacity; i++) {
+                    balls.push(c);
+                }
+            }
+            balls = shuffle(balls);
+            // Ensure valid distribution of balls
+            currentState = Array.from({ length: numColors }, () => []);
+            for (let i = 0; i < balls.length; i++) {
+                const tubeIndex = Math.floor(i / tubeCapacity);
+                if (tubeIndex < numColors) {
+                    currentState[tubeIndex].push(balls[i]);
+                }
+            }
+            // Add empty tubes
+            for (let i = numColors; i < numTubes; i++) {
+                currentState.push([]);
+            }
+            initialState = JSON.parse(JSON.stringify(currentState));
+            moveHistory = [];
+            selectedTube = -1;
+            currentSolution = null;
+            gameStateId++;
+            startTime = new Date(); // Record start time
+            document.getElementById('animateSolution').style.display = 'none';
+            document.getElementById('solutionSteps').innerHTML = '';
+            document.getElementById('winMessage').style.display = 'none';
+            document.getElementById('timeDisplay').textContent = '';
+            render();
+        }
+
+        function shuffle(arr) {
+            for (let i = arr.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [arr[i], arr[j]] = [arr[j], arr[i]];
+            }
+            return arr;
+        }
+
+        function render() {
+            const gameDiv = document.getElementById('game');
+            gameDiv.innerHTML = '';
+            currentState.forEach((tube, index) => {
+                const tubeDiv = document.createElement('div');
+                tubeDiv.classList.add('tube');
+                if (index === selectedTube) tubeDiv.classList.add('selected');
+                // Ensure tube is an array to prevent rendering errors
+                if (!Array.isArray(tube)) tube = [];
+                tube.forEach(color => {
+                    if (color >= 1 && color <= 15) { // Validate color
+                        const ball = document.createElement('div');
+                        ball.classList.add('ball', `color-${color}`);
+                        tubeDiv.appendChild(ball);
+                    }
+                });
+                const tubeNumber = document.createElement('div');
+                tubeNumber.classList.add('tube-number');
+                tubeNumber.textContent = index + 1;
+                tubeDiv.appendChild(tubeNumber);
+                tubeDiv.addEventListener('click', () => handleClick(index));
+                gameDiv.appendChild(tubeDiv);
+            });
+            checkWin();
+        }
+
+        function handleClick(index) {
+            if (selectedTube === -1) {
+                if (currentState[index]?.length > 0) selectedTube = index;
+            } else {
+                if (selectedTube === index) {
+                    selectedTube = -1;
+                } else {
+                    const moveResult = tryMove(currentState, selectedTube, index);
+                    if (moveResult.success) {
+                        moveHistory.push(JSON.parse(JSON.stringify(currentState)));
+                        currentState = moveResult.newState;
+                        const balls = document.querySelectorAll(`.tube:nth-child(${index + 1}) .ball`);
+                        for (let i = balls.length - moveResult.numMoved; i < balls.length; i++) {
+                            if (balls[i]) {
+                                balls[i].classList.add('moving');
+                                setTimeout(() => balls[i]?.classList.remove('moving'), 500);
+                            }
+                        }
+                        selectedTube = -1;
+                    } else {
+                        selectedTube = index;
+                    }
+                }
+            }
+            render();
+        }
+
+        function checkWin() {
+            if (isSolved(currentState)) {
+                const endTime = new Date();
+                const elapsedTime = (endTime - startTime) / 1000; // Time in seconds
+                const minutes = Math.floor(elapsedTime / 60);
+                const seconds = Math.floor(elapsedTime % 60);
+                const timeString = minutes > 0 ? `${minutes}m ${seconds}s` : `${seconds}s`;
+                document.getElementById('timeDisplay').textContent = `Time: ${timeString}`;
+                document.getElementById('winMessage').style.display = 'block';
+                startFireworks();
+                setTimeout(() => {
+                    document.getElementById('winMessage').style.display = 'none';
+                }, 5000);
+            }
+        }
+
+        function startFireworks() {
+            const container = document.body;
+            for (let i = 0; i < 20; i++) {
+                setTimeout(() => {
+                    const firework = document.createElement('div');
+                    firework.classList.add('firework');
+                    const colors = ['#ff0000', '#00ff00', '#0000ff', '#ffff00', '#ff69b4'];
+                    firework.style.background = `radial-gradient(circle, ${colors[Math.floor(Math.random() * colors.length)]}, rgba(255, 165, 0, 0))`;
+                    firework.style.left = `${Math.random() * window.innerWidth}px`;
+                    firework.style.top = `${Math.random() * window.innerHeight}px`;
+                    container.appendChild(firework);
+                    setTimeout(() => firework.remove(), 1000);
+                }, i * 100);
+            }
+        }
+
+        function heuristic(state) {
+            let h = 0;
+            state.forEach(tube => {
+                if (!Array.isArray(tube) || tube.length === 0) return;
+                if (!isMono(tube)) h += 2;
+                const base = tube[0];
+                tube.forEach(color => {
+                    if (color !== base) h++;
+                });
+            });
+            return h;
+        }
+
+        function isMono(tube) {
+            return !Array.isArray(tube) || tube.length === 0 || tube.every(color => color === tube[0]);
+        }
+
+        function isSolved(state) {
+            return state.every(tube => !Array.isArray(tube) || tube.length === 0 || (tube.length === tubeCapacity && isMono(tube)));
+        }
+
+        function tryMove(state, from, to) {
+            if (!Array.isArray(state[from]) || !Array.isArray(state[to]) || from === to || state[from].length === 0 || state[to].length >= tubeCapacity) {
+                return { success: false };
+            }
+            const topBall = state[from][state[from].length - 1];
+            let numToMove = 1;
+            for (let i = state[from].length - 2; i >= 0; i--) {
+                if (state[from][i] === topBall && state[to].length + numToMove < tubeCapacity) {
+                    numToMove++;
+                } else {
+                    break;
+                }
+            }
+            if (state[to].length === 0 || (state[to][state[to].length - 1] === topBall && state[to].length + numToMove <= tubeCapacity)) {
+                const newState = JSON.parse(JSON.stringify(state));
+                for (let i = 0; i < numToMove; i++) {
+                    newState[to].push(newState[from].pop());
+                }
+                return { success: true, newState, numMoved: numToMove };
+            }
+            return { success: false };
+        }
+
+        function getStateKey(state) {
+            return JSON.stringify(state.map(t => (Array.isArray(t) ? t.join(',') : '')).sort());
+        }
+
+        class MinHeap {
+            constructor() {
+                this.heap = [];
+            }
+            insert(node) {
+                this.heap.push(node);
+                this.bubbleUp(this.heap.length - 1);
+            }
+            extractMin() {
+                if (this.heap.length === 0) return null;
+                const min = this.heap[0];
+                const end = this.heap.pop();
+                if (this.heap.length > 0) {
+                    this.heap[0] = end;
+                    this.sinkDown(0);
+                }
+                return min;
+            }
+            bubbleUp(index) {
+                const element = this.heap[index];
+                while (index > 0) {
+                    const parentIndex = Math.floor((index - 1) / 2);
+                    const parent = this.heap[parentIndex];
+                    if (parent.f > element.f) {
+                        this.heap[parentIndex] = element;
+                        this.heap[index] = parent;
+                        index = parentIndex;
+                    } else break;
+                }
+            }
+            sinkDown(index) {
+                const length = this.heap.length;
+                const element = this.heap[index];
+                while (true) {
+                    let leftChildIndex = 2 * index + 1;
+                    let rightChildIndex = 2 * index + 2;
+                    let leftChild, rightChild;
+                    let swap = null;
+                    if (leftChildIndex < length) {
+                        leftChild = this.heap[leftChildIndex];
+                        if (leftChild.f < element.f) swap = leftChildIndex;
+                    }
+                    if (rightChildIndex < length) {
+                        rightChild = this.heap[rightChildIndex];
+                        if ((swap === null && rightChild.f < element.f) || (swap !== null && rightChild.f < leftChild.f)) {
+                            swap = rightChildIndex;
+                        }
+                    }
+                    if (swap === null) break;
+                    this.heap[index] = this.heap[swap];
+                    this.heap[swap] = element;
+                    index = swap;
+                }
+            }
+        }
+
+        function aStarSolve(startState) {
+            const open = new MinHeap();
+            const closed = new Map();
+            open.insert({ state: startState, path: [], g: 0, f: heuristic(startState) });
+            const maxIterations = 100000; // Prevent infinite loops
+            let iterations = 0;
+            while (open.heap.length > 0 && iterations < maxIterations) {
+                iterations++;
+                const current = open.extractMin();
+                const currentKey = getStateKey(current.state);
+                if (isSolved(current.state)) return current.path;
+                if (closed.has(currentKey) && closed.get(currentKey) <= current.g) continue;
+                closed.set(currentKey, current.g);
+                for (let i = 0; i < current.state.length; i++) {
+                    for (let j = 0; j < current.state.length; j++) {
+                        if (i === j) continue;
+                        const moveResult = tryMove(current.state, i, j);
+                        if (moveResult.success) {
+                            const newPath = [...current.path, { from: i, to: j, numMoved: moveResult.numMoved }];
+                            const g2 = current.g + moveResult.numMoved;
+                            const h2 = heuristic(moveResult.newState);
+                            open.insert({ state: moveResult.newState, path: newPath, g: g2, f: g2 + h2 });
+                        }
+                    }
+                }
+            }
+            return [];
+        }
+
+        document.getElementById('newGame').addEventListener('click', initGame);
+
+        document.getElementById('undo').addEventListener('click', () => {
+            if (moveHistory.length > 0) {
+                currentState = moveHistory.pop();
+                selectedTube = -1;
+                if (moveHistory.length === 0) {
+                    currentSolution = null;
+                    document.getElementById('animateSolution').style.display = 'none';
+                    document.getElementById('solutionSteps').innerHTML = '';
+                }
+                render();
+            }
+        });
+
+        document.getElementById('resetGame').addEventListener('click', () => {
+            currentState = JSON.parse(JSON.stringify(initialState));
+            moveHistory = [];
+            selectedTube = -1;
+            currentSolution = null;
+            startTime = new Date(); // Reset start time
+            document.getElementById('animateSolution').style.display = 'none';
+            document.getElementById('solutionSteps').innerHTML = '';
+            document.getElementById('winMessage').style.display = 'none';
+            document.getElementById('timeDisplay').textContent = '';
+            render();
+        });
+
+        document.getElementById('solve').addEventListener('click', () => {
+            const stepsDiv = document.getElementById('solutionSteps');
+            const animateButton = document.getElementById('animateSolution');
+            if (currentSolution) {
+                stepsDiv.innerHTML = '<strong>Solution Steps:</strong><br>' + currentSolution.map(m => `Move ${m.numMoved} ball(s) from tube ${m.from + 1} to ${m.to + 1}`).join('<br>');
+                animateButton.style.display = 'block';
+                return;
+            }
+            stepsDiv.innerHTML = 'Solving...';
+            currentSolution = aStarSolve(currentState);
+            if (currentSolution.length > 0) {
+                stepsDiv.innerHTML = '<strong>Solution Steps:</strong><br>' + currentSolution.map(m => `Move ${m.numMoved} ball(s) from tube ${m.from + 1} to ${m.to + 1}`).join('<br>');
+                animateButton.style.display = 'block';
+            } else {
+                stepsDiv.innerHTML = 'No solution found!';
+                animateButton.style.display = 'none';
+            }
+        });
+
+        document.getElementById('animateSolution').addEventListener('click', () => {
+            if (currentSolution && currentSolution.length > 0) {
+                let i = 0;
+                const animate = setInterval(() => {
+                    if (i >= currentSolution.length) {
+                        clearInterval(animate);
+                        return;
+                    }
+                    const { from, to, numMoved } = currentSolution[i++];
+                    const moveResult = tryMove(currentState, from, to);
+                    if (moveResult.success) {
+                        currentState = moveResult.newState;
+                        const toTubeBalls = document.querySelectorAll(`.tube:nth-child(${to + 1}) .ball`);
+                        for (let j = toTubeBalls.length - moveResult.numMoved; j < toTubeBalls.length; j++) {
+                            if (toTubeBalls[j]) {
+                                toTubeBalls[j].classList.add('moving');
+                                setTimeout(() => toTubeBalls[j]?.classList.remove('moving'), 500);
+                            }
+                        }
+                        render();
+                    }
+                }, 600);
+            }
+        });
+
+        initGame();
+    </script>
+</body>
+</html>
